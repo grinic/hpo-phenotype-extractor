@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>HPO Phenotype Extractor</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
+    textarea { width: 100%; }
+    pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; }
+    #status { color: green; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>HPO → Phenotype Extractor</h1>
+
+  <p>
+    Upload an Excel file (<b>first column = HPO term</b>, <b>second column = phenotype</b>).  
+    You only need to upload <b>once per session</b>.
+  </p>
+
+  <input type="file" id="excelFile" accept=".xlsx,.xls" /><br><br>
+  <div id="status">No Excel loaded yet.</div>
+  <hr>
+
+  <label for="termList">Enter HPO terms (comma, semicolon or whitespace separated):</label><br>
+  <textarea id="termList" rows="4" placeholder="HP:0004322, HP:0001250"></textarea><br><br>
+
+  <button onclick="extractPhenotypes()">Extract Phenotypes</button>
+
+  <h2>Result:</h2>
+  <pre id="output"></pre>
+
+<script>
+  let hpoMap = {};
+  let excelLoaded = false;
+
+  // Load Excel file ONCE
+  document.getElementById('excelFile').addEventListener('change', (e) => {
+    let reader = new FileReader();
+    reader.onload = function(e) {
+      let data = new Uint8Array(e.target.result);
+      let workbook = XLSX.read(data, {type: 'array'});
+      let sheet = workbook.Sheets[workbook.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+      hpoMap = {};
+      rows.slice(1).forEach(r => {
+        if (r[0] && r[1]) {
+          let key = String(r[0]).trim();
+          let val = String(r[1]).trim();
+          hpoMap[key] = val;
+        }
+      });
+      excelLoaded = true;
+      document.getElementById("status").innerText = 
+        "Excel loaded: " + Object.keys(hpoMap).length + " HPO terms available.";
+    };
+    reader.readAsArrayBuffer(e.target.files[0]);
+  });
+
+  // Extract phenotypes every time you click "Extract"
+  function extractPhenotypes() {
+    if (!excelLoaded) {
+      alert("Please upload an Excel file first!");
+      return;
+    }
+    let raw = document.getElementById("termList").value;
+    let terms = raw.split(/[,;\\s]+/).map(s => s.trim()).filter(s => s);
+    if (terms.length === 0) {
+      alert("Please enter at least one HPO term.");
+      return;
+    }
+    let phenos = terms.map(t => {
+      if (hpoMap[t]) return hpoMap[t];
+      else return `(Unknown: ${t})`;
+    });
+    let txt = "The patient presents with:\n" + phenos.map(p => "- " + p).join("\n");
+    document.getElementById("output").innerText = txt;
+  }
+</script>
+
+</body>
+</html>
